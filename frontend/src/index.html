@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SubtitleTranslatorAI GUI</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: white;
+            margin: 0;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .section {
+            background: #2d2d2d;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+        }
+        
+        .btn {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        
+        .btn:hover {
+            background: #005a9e;
+        }
+        
+        .btn:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #555;
+            border-radius: 4px;
+            background: #1a1a1a;
+            color: white;
+        }
+        
+        .output {
+            background: #000;
+            color: #ccc;
+            padding: 15px;
+            border-radius: 4px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.4;
+            white-space: pre-wrap;
+        }
+        
+        .file-input-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #333;
+            color: white;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid #007acc;
+            z-index: 1000;
+        }
+        
+        .notification.error {
+            border-left-color: #dc3545;
+        }
+        
+        .notification.success {
+            border-left-color: #28a745;
+        }
+
+        /* ANSI Color Classes */
+        .ansi-black { color: #000000; }
+        .ansi-red { color: #ff0000; }
+        .ansi-green { color: #00ff00; }
+        .ansi-yellow { color: #ffff00; }
+        .ansi-blue { color: #0000ff; }
+        .ansi-magenta { color: #ff00ff; }
+        .ansi-cyan { color: #00ffff; }
+        .ansi-white { color: #ffffff; }
+        .ansi-bright-black { color: #808080; }
+        .ansi-bright-red { color: #ff8080; }
+        .ansi-bright-green { color: #80ff80; }
+        .ansi-bright-yellow { color: #ffff80; }
+        .ansi-bright-blue { color: #8080ff; }
+        .ansi-bright-magenta { color: #ff80ff; }
+        .ansi-bright-cyan { color: #80ffff; }
+        .ansi-bright-white { color: #ffffff; }
+        
+        .ansi-bold { font-weight: bold; }
+        .ansi-dim { opacity: 0.7; }
+        .ansi-underline { text-decoration: underline; }
+        
+        /* Script specific colors */
+        .script-success { color: #28a745; }
+        .script-error { color: #dc3545; }
+        .script-warning { color: #ffc107; }
+        .script-info { color: #17a2b8; }
+        .script-setup { color: #007acc; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎬 SubtitleTranslatorAI GUI</h1>
+            <p>Subtitle Translation Tool Interface</p>
+        </div>
+
+        <div class="section">
+            <h2>📁 File Selection</h2>
+            <div class="file-input-group">
+                <input type="text" id="file-input" class="form-control" placeholder="Select MKV file..." readonly>
+                <button id="browse-btn" class="btn">Browse</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>⚙️ Options</h2>
+            <label>
+                <input type="checkbox" id="select-mode" checked> Select best subtitle (default)
+            </label>
+            <br>
+            <label>
+                <input type="checkbox" id="all-mode"> Process all subtitles
+            </label>
+        </div>
+
+        <div class="section">
+            <h2>🚀 Execution</h2>
+            <div>
+                <button id="check-prerequisites-btn" class="btn">Check Prerequisites</button>
+                <button id="execute-btn" class="btn" disabled>Execute</button>
+                <button id="stop-btn" class="btn" style="display: none;">Stop</button>
+            </div>
+            <div style="margin-top: 10px;">
+                <strong>Command:</strong>
+                <div id="command-preview" style="background: #000; padding: 10px; border-radius: 4px; font-family: monospace; margin-top: 5px;">
+                    No command generated yet
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>📋 Output</h2>
+            <div id="output" class="output">Ready to execute script. Select a file and click Execute.</div>
+        </div>
+    </div>
+
+    <!-- Notifications container -->
+    <div id="notifications"></div>
+
+    <script>
+        console.log('🚀 Starting SubtitleTranslatorAI GUI...');
+        
+        // Check if electronAPI is available
+        if (!window.electronAPI) {
+            console.error('❌ electronAPI not available');
+            alert('Error: Application failed to initialize properly. electronAPI not found.');
+        } else {
+            console.log('✅ electronAPI available');
+        }
+
+        // ANSI color code processor
+        function processAnsiCodes(text) {
+            // Map of ANSI codes to CSS classes
+            const ansiMap = {
+                '0': 'reset',
+                '1': 'ansi-bold',
+                '2': 'ansi-dim',
+                '4': 'ansi-underline',
+                '30': 'ansi-black',
+                '31': 'ansi-red',
+                '32': 'ansi-green',
+                '33': 'ansi-yellow',
+                '34': 'ansi-blue',
+                '35': 'ansi-magenta',
+                '36': 'ansi-cyan',
+                '37': 'ansi-white',
+                '90': 'ansi-bright-black',
+                '91': 'ansi-bright-red',
+                '92': 'ansi-bright-green',
+                '93': 'ansi-bright-yellow',
+                '94': 'ansi-bright-blue',
+                '95': 'ansi-bright-magenta',
+                '96': 'ansi-bright-cyan',
+                '97': 'ansi-bright-white'
+            };
+
+            let result = '';
+            let currentClasses = [];
+            
+            // Split by ANSI escape sequences
+            const parts = text.split(/\x1b\[([0-9;]*)m/);
+            
+            for (let i = 0; i < parts.length; i++) {
+                if (i % 2 === 0) {
+                    // This is text content
+                    if (parts[i]) {
+                        if (currentClasses.length > 0) {
+                            result += `<span class="${currentClasses.join(' ')}">${escapeHtml(parts[i])}</span>`;
+                        } else {
+                            result += escapeHtml(parts[i]);
+                        }
+                    }
+                } else {
+                    // This is an ANSI code
+                    const codes = parts[i].split(';');
+                    for (const code of codes) {
+                        if (code === '0' || code === '') {
+                            currentClasses = []; // Reset
+                        } else if (ansiMap[code]) {
+                            if (!currentClasses.includes(ansiMap[code])) {
+                                currentClasses.push(ansiMap[code]);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            return result;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Simple notification system
+        function showNotification(message, type = 'info') {
+            console.log(`📢 Notification [${type}]: ${message}`);
+            
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            
+            const container = document.getElementById('notifications');
+            container.appendChild(notification);
+            
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.remove();
+                }
+            }, 5000);
+        }
+
+        // DOM elements
+        const fileInput = document.getElementById('file-input');
+        const browseBtn = document.getElementById('browse-btn');
+        const selectMode = document.getElementById('select-mode');
+        const allMode = document.getElementById('all-mode');
+        const executeBtn = document.getElementById('execute-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const commandPreview = document.getElementById('command-preview');
+        const output = document.getElementById('output');
+        const checkPrereqBtn = document.getElementById('check-prerequisites-btn');
+
+        console.log('🔗 Setting up event listeners...');
+
+        // File browse
+        browseBtn.addEventListener('click', async () => {
+            console.log('📁 Browse button clicked');
+            try {
+                const filePath = await window.electronAPI.selectFile({
+                    filters: [
+                        { name: 'MKV Files', extensions: ['mkv'] },
+                        { name: 'All Files', extensions: ['*'] }
+                    ]
+                });
+                if (filePath) {
+                    fileInput.value = filePath;
+                    updateCommand();
+                    showNotification('File selected successfully', 'success');
+                }
+            } catch (error) {
+                console.error('Error selecting file:', error);
+                showNotification('Error selecting file', 'error');
+            }
+        });
+
+        // Mode checkboxes (exclusive)
+        selectMode.addEventListener('change', () => {
+            if (selectMode.checked) {
+                allMode.checked = false;
+            }
+            updateCommand();
+        });
+
+        allMode.addEventListener('change', () => {
+            if (allMode.checked) {
+                selectMode.checked = false;
+            } else {
+                selectMode.checked = true; // Default to select mode
+            }
+            updateCommand();
+        });
+
+        // Update command preview
+        function updateCommand() {
+            const file = fileInput.value.trim();
+            const args = [];
+            
+            if (allMode.checked) {
+                args.push('--all');
+            } else {
+                args.push('--select');
+            }
+            
+            if (file) {
+                args.push(file);
+            }
+            
+            const command = `./backend/main.sh ${args.join(' ')}`;
+            commandPreview.textContent = command;
+            
+            executeBtn.disabled = !file;
+        }
+
+        // Check prerequisites
+        checkPrereqBtn.addEventListener('click', async () => {
+            console.log('🔍 Checking prerequisites...');
+            try {
+                const checks = await window.electronAPI.checkPrerequisites();
+                console.log('Prerequisites check result:', checks);
+                
+                const results = [];
+                results.push(`Docker: ${checks.docker ? '✅' : '❌'}`);
+                results.push(`Docker Compose: ${checks.dockerCompose ? '✅' : '❌'}`);
+                results.push(`Bash: ${checks.bash ? '✅' : '❌'}`);
+                
+                showNotification(`Prerequisites: ${results.join(', ')}`, 'info');
+            } catch (error) {
+                console.error('Error checking prerequisites:', error);
+                showNotification('Error checking prerequisites', 'error');
+            }
+        });
+
+        // Execute script
+        executeBtn.addEventListener('click', async () => {
+            console.log('🚀 Execute button clicked');
+            
+            const file = fileInput.value.trim();
+            if (!file) {
+                showNotification('Please select a file first', 'error');
+                return;
+            }
+            
+            const args = [];
+            if (allMode.checked) {
+                args.push('--all');
+            } else {
+                args.push('--select');
+            }
+            args.push(file);
+            
+            try {
+                executeBtn.style.display = 'none';
+                stopBtn.style.display = 'inline-block';
+                
+                output.innerHTML = 'Starting execution...\n';
+                
+                // Listen for output
+                window.electronAPI.onScriptOutput((data) => {
+                    const processedText = processAnsiCodes(data.data);
+                    output.innerHTML += processedText;
+                    output.scrollTop = output.scrollHeight;
+                });
+                
+                const result = await window.electronAPI.executeScript({ args });
+                
+                if (result.exitCode === 0) {
+                    showNotification('Script executed successfully!', 'success');
+                    output.innerHTML += '\n<span class="script-success">✅ Script execution completed successfully!</span>\n';
+                } else {
+                    showNotification(`Script failed with exit code: ${result.exitCode}`, 'error');
+                    output.innerHTML += `\n<span class="script-error">❌ Script failed with exit code: ${result.exitCode}</span>\n`;
+                }
+                
+            } catch (error) {
+                console.error('Execution error:', error);
+                showNotification('Script execution failed', 'error');
+                output.innerHTML += `\n<span class="script-error">❌ Execution error: ${error.message}</span>\n`;
+            } finally {
+                executeBtn.style.display = 'inline-block';
+                stopBtn.style.display = 'none';
+                output.scrollTop = output.scrollHeight;
+            }
+        });
+
+        // Stop execution
+        stopBtn.addEventListener('click', async () => {
+            console.log('🛑 Stop button clicked');
+            try {
+                await window.electronAPI.killScript();
+                showNotification('Script execution stopped', 'warning');
+                output.innerHTML += '\n<span class="script-warning">⚠️ Script execution was stopped by user</span>\n';
+                executeBtn.style.display = 'inline-block';
+                stopBtn.style.display = 'none';
+                output.scrollTop = output.scrollHeight;
+            } catch (error) {
+                console.error('Error stopping script:', error);
+                showNotification('Error stopping script', 'error');
+            }
+        });
+
+        console.log('✅ All event listeners set up');
+        showNotification('SubtitleTranslatorAI GUI loaded successfully', 'success');
+
+        // Initialize command preview
+        updateCommand();
+    </script>
+</body>
+</html> 

@@ -1,0 +1,36 @@
+services:
+  ollama:
+    build:
+      context: ./translatorApi
+      dockerfile: Dockerfile.ollama
+    container_name: ollama
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ./translatorApi/init:/scripts  
+    entrypoint: ["/bin/bash", "/scripts/init.sh"]
+    runtime: ${DOCKER_RUNTIME:-runc}
+    networks:
+      - ai-network
+    restart: unless-stopped
+
+  translator:
+    build: ./translatorApi
+    container_name: translator 
+    depends_on:
+      - ollama
+    networks:
+      - ai-network
+    ports:
+      - "${TRANSLATOR_PORT:-8000}:8000"
+    volumes:
+      - ./translatorApi/app:/app/app  
+    environment:
+      - PYTHONUNBUFFERED=1
+      - OLLAMA_HOST=${OLLAMA_HOST:-ollama}
+      - OLLAMA_PORT=${OLLAMA_PORT:-11434}
+    restart: unless-stopped
+
+networks:
+  ai-network:
+    driver: bridge 

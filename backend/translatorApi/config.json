@@ -1,0 +1,10 @@
+{
+  "model": "tibellium/towerinstruct-mistral",
+  "temperature": 0.9760366018979956,
+  "top_p": 0.7173110685396057,
+  "top_k": 17,
+  "repeat_penalty": 1.2422299693334073,
+  "chunk_size": 39,
+  "max_tokens": 6784,
+  "template": "precise"
+}

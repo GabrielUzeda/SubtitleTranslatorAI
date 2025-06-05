@@ -1,0 +1,20 @@
+FROM ollama/ollama:latest
+
+# Prevent interactive prompts during installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install minimal required dependencies only
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    htop \
+    && rm -rf /var/lib/apt/lists/*
+
+# Configurações para GPUs
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV MODEL=tibellium/towerinstruct-mistral
+
+# Copia script de inicialização
+COPY init/init.sh /init.sh
+RUN chmod +x /init.sh
+
+ENTRYPOINT ["/init.sh"]

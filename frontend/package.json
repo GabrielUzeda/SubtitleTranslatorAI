@@ -1,0 +1,65 @@
+{
+  "name": "subtitle-translator-ai-gui",
+  "version": "1.0.0",
+  "description": "GUI for SubtitleTranslatorAI",
+  "main": "src/main.js",
+  "author": "SubtitleTranslatorAI Team",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
+    "pack": "electron-builder --dir",
+    "dist": "npm run build"
+  },
+  "build": {
+    "appId": "com.subtitletranslatorai.gui",
+    "productName": "SubtitleTranslatorAI GUI",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "node_modules/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../backend",
+        "to": "backend",
+        "filter": [
+          "**/*",
+          "!node_modules",
+          "!*.log"
+        ]
+      }
+    ],
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "AudioVideo",
+      "executableName": "subtitle-translator-ai-gui"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    }
+  },
+  "devDependencies": {
+    "electron": "^27.3.11",
+    "electron-builder": "^24.13.3"
+  },
+  "dependencies": {
+    "electron-store": "^8.1.0"
+  }
+} 
