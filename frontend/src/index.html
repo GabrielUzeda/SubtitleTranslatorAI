@@ -324,6 +324,23 @@
             updateCommand();
         });
 
+        // Update execute button state based on prerequisites and file selection
+        function updateExecuteButtonState() {
+            const file = fileInput.value.trim();
+            const hasFile = !!file;
+            
+            // Disable execution if prerequisites haven't been checked or failed
+            executeBtn.disabled = !hasFile || !prerequisitesValid;
+            
+            if (!hasFile) {
+                executeBtn.title = 'Please select a file first';
+            } else if (!prerequisitesValid) {
+                executeBtn.title = 'Please run "Check Prerequisites" first and ensure all required dependencies are installed';
+            } else {
+                executeBtn.title = 'Execute the script with selected options';
+            }
+        }
+
         // Update command preview
         function updateCommand() {
             const file = fileInput.value.trim();
@@ -342,25 +359,112 @@
             const command = `./backend/main.sh ${args.join(' ')}`;
             commandPreview.textContent = command;
             
-            executeBtn.disabled = !file;
+            updateExecuteButtonState();
         }
+
+        // Global variable to track prerequisites status
+        let prerequisitesValid = false;
 
         // Check prerequisites
         checkPrereqBtn.addEventListener('click', async () => {
             console.log('🔍 Checking prerequisites...');
+            checkPrereqBtn.disabled = true;
+            checkPrereqBtn.textContent = 'Checking...';
+            
             try {
                 const checks = await window.electronAPI.checkPrerequisites();
                 console.log('Prerequisites check result:', checks);
                 
-                const results = [];
-                results.push(`Docker: ${checks.docker ? '✅' : '❌'}`);
-                results.push(`Docker Compose: ${checks.dockerCompose ? '✅' : '❌'}`);
-                results.push(`Bash: ${checks.bash ? '✅' : '❌'}`);
+                // Define required dependencies
+                const requiredDeps = [
+                    'docker', 'dockerCompose', 'dockerPermissions', 'bash', 
+                    'curl', 'jq', 'findutils', 'sed', 'file', 'grep',
+                    'mkvmerge', 'mkvextract', 'ffmpeg', 'ffprobe'
+                ];
                 
-                showNotification(`Prerequisites: ${results.join(', ')}`, 'info');
+                // At least one network utility is required
+                const hasNetworkUtility = checks.netstat || checks.ss;
+                
+                // Check if all required dependencies are met
+                const missingRequired = requiredDeps.filter(dep => !checks[dep]);
+                const allRequiredMet = missingRequired.length === 0 && hasNetworkUtility;
+                
+                // Create detailed results
+                const results = [];
+                
+                // Core dependencies
+                results.push(`🐳 Docker: ${checks.docker ? '✅' : '❌'}`);
+                results.push(`🐳 Docker Compose: ${checks.dockerCompose ? '✅' : '❌'}`);
+                results.push(`🐳 Docker Permissions: ${checks.dockerPermissions ? '✅' : '❌'}`);
+                
+                // System utilities
+                results.push(`💻 Bash: ${checks.bash ? '✅' : '❌'}`);
+                results.push(`🌐 curl: ${checks.curl ? '✅' : '❌'}`);
+                results.push(`📝 jq: ${checks.jq ? '✅' : '❌'}`);
+                results.push(`🔍 find: ${checks.findutils ? '✅' : '❌'}`);
+                results.push(`📝 sed: ${checks.sed ? '✅' : '❌'}`);
+                results.push(`📄 file: ${checks.file ? '✅' : '❌'}`);
+                results.push(`🔍 grep: ${checks.grep ? '✅' : '❌'}`);
+                
+                // Media processing
+                results.push(`🎬 mkvmerge: ${checks.mkvmerge ? '✅' : '❌'}`);
+                results.push(`🎬 mkvextract: ${checks.mkvextract ? '✅' : '❌'}`);
+                results.push(`🎥 ffmpeg: ${checks.ffmpeg ? '✅' : '❌'}`);
+                results.push(`🎥 ffprobe: ${checks.ffprobe ? '✅' : '❌'}`);
+                
+                // Network utilities
+                results.push(`🌐 netstat/ss: ${hasNetworkUtility ? '✅' : '❌'}`);
+                
+                // Optional GPU utilities
+                if (checks.nvidiaSmi || checks.rocmSmi || checks.lspci) {
+                    results.push(`🎮 GPU Utils: ${checks.nvidiaSmi ? 'NVIDIA✅' : ''} ${checks.rocmSmi ? 'AMD✅' : ''} ${checks.lspci ? 'PCI✅' : ''}`);
+                }
+                
+                // Update global status
+                prerequisitesValid = allRequiredMet;
+                
+                // Show detailed output in the output area
+                output.innerHTML = '<h3>📋 Prerequisites Check Results:</h3>\n';
+                output.innerHTML += results.join('\n') + '\n\n';
+                
+                if (!allRequiredMet) {
+                    output.innerHTML += '<span class="script-error">❌ MISSING REQUIRED DEPENDENCIES:</span>\n';
+                    if (missingRequired.length > 0) {
+                        output.innerHTML += `Required: ${missingRequired.join(', ')}\n`;
+                    }
+                    if (!hasNetworkUtility) {
+                        output.innerHTML += 'Network utility: netstat or ss\n';
+                    }
+                    output.innerHTML += '\n<span class="script-warning">⚠️ Script execution is DISABLED until all required dependencies are installed.</span>\n\n';
+                    
+                    // Provide installation instructions
+                    output.innerHTML += '<strong>Installation Instructions:</strong>\n';
+                    if (navigator.platform.toLowerCase().includes('linux')) {
+                        output.innerHTML += 'Ubuntu/Debian: sudo apt-get install docker.io docker-compose mkvtoolnix ffmpeg jq curl net-tools file\n';
+                        output.innerHTML += 'Fedora: sudo dnf install docker docker-compose mkvtoolnix ffmpeg jq curl net-tools file\n';
+                        output.innerHTML += 'Arch: sudo pacman -S docker docker-compose mkvtoolnix ffmpeg jq curl net-tools file\n';
+                    } else if (navigator.platform.toLowerCase().includes('mac')) {
+                        output.innerHTML += 'macOS: brew install docker docker-compose mkvtoolnix ffmpeg jq curl\n';
+                    }
+                    
+                    showNotification('❌ Prerequisites check failed - execution disabled', 'error');
+                } else {
+                    output.innerHTML += '<span class="script-success">✅ All required prerequisites are met!</span>\n';
+                    output.innerHTML += '<span class="script-success">🚀 Script execution is enabled.</span>\n';
+                    showNotification('✅ All prerequisites met - ready to execute!', 'success');
+                }
+                
+                // Update execute button state
+                updateExecuteButtonState();
+                
             } catch (error) {
                 console.error('Error checking prerequisites:', error);
                 showNotification('Error checking prerequisites', 'error');
+                prerequisitesValid = false;
+                updateExecuteButtonState();
+            } finally {
+                checkPrereqBtn.disabled = false;
+                checkPrereqBtn.textContent = 'Check Prerequisites';
             }
         });
 
@@ -371,6 +475,14 @@
             const file = fileInput.value.trim();
             if (!file) {
                 showNotification('Please select a file first', 'error');
+                return;
+            }
+            
+            // Check prerequisites before execution
+            if (!prerequisitesValid) {
+                showNotification('❌ Prerequisites check failed or not performed. Please run "Check Prerequisites" first.', 'error');
+                output.innerHTML += '\n<span class="script-error">❌ Execution blocked: Prerequisites not validated</span>\n';
+                output.innerHTML += '<span class="script-warning">⚠️ Please click "Check Prerequisites" and ensure all required dependencies are installed.</span>\n';
                 return;
             }
             
@@ -435,8 +547,12 @@
         console.log('✅ All event listeners set up');
         showNotification('SubtitleTranslatorAI GUI loaded successfully', 'success');
 
-        // Initialize command preview
+        // Initialize command preview and execute button state
         updateCommand();
+        
+        // Show initial message about prerequisites
+        output.innerHTML = '<span class="script-warning">⚠️ Please click "Check Prerequisites" before executing the script.</span>\n';
+        output.innerHTML += '<span class="script-info">This will verify that all required dependencies are installed on your system.</span>\n';
     </script>
 </body>
 </html> 

@@ -414,57 +414,103 @@ ipcMain.handle('kill-script', async (event) => {
 
 ipcMain.handle('check-prerequisites', async () => {
   const checks = {
+    // Core dependencies
     docker: false,
     dockerCompose: false,
-    bash: false
+    dockerPermissions: false,
+    
+    // System utilities  
+    bash: false,
+    curl: false,
+    jq: false,
+    findutils: false,
+    sed: false,
+    file: false,
+    grep: false,
+    
+    // Media processing dependencies
+    mkvmerge: false,
+    mkvextract: false, 
+    ffmpeg: false,
+    ffprobe: false,
+    
+    // Network utilities (at least one required)
+    netstat: false,
+    ss: false,
+    
+    // Optional GPU utilities
+    nvidiaSmi: false,
+    rocmSmi: false,
+    lspci: false
   };
-  
-  // Check Docker
-  try {
-    const docker = spawn('docker', ['--version'], { shell: true });
-    await new Promise((resolve, reject) => {
-      docker.on('close', (code) => {
-        checks.docker = code === 0;
-        resolve();
-      });
-      docker.on('error', reject);
-    });
-  } catch (error) {
-    console.log('Docker not found:', error.message);
-  }
-  
-  // Check Docker Compose
-  try {
-    const compose = spawn('docker', ['compose', '--version'], { shell: true });
-    await new Promise((resolve, reject) => {
-      compose.on('close', (code) => {
-        checks.dockerCompose = code === 0;
-        resolve();
-      });
-      compose.on('error', reject);
-    });
-  } catch (error) {
-    console.log('Docker Compose not found:', error.message);
-  }
-  
-  // Check Bash (mainly for Windows)
-  if (process.platform === 'win32') {
+
+  // Helper function to check command availability
+  const checkCommand = async (command, args = ['--version']) => {
     try {
-      const bash = spawn('bash', ['--version'], { shell: true });
-      await new Promise((resolve, reject) => {
-        bash.on('close', (code) => {
-          checks.bash = code === 0;
-          resolve();
+      const process = spawn(command, args, { shell: true });
+      return new Promise((resolve) => {
+        process.on('close', (code) => {
+          resolve(code === 0);
         });
-        bash.on('error', reject);
+        process.on('error', () => {
+          resolve(false);
+        });
       });
     } catch (error) {
-      console.log('Bash not found:', error.message);
+      return false;
     }
+  };
+
+  // Check Docker
+  console.log('Checking Docker...');
+  checks.docker = await checkCommand('docker');
+  
+  // Check Docker Compose
+  console.log('Checking Docker Compose...');
+  checks.dockerCompose = await checkCommand('docker', ['compose', '--version']);
+  
+  // Check Docker permissions
+  if (checks.docker) {
+    console.log('Checking Docker permissions...');
+    checks.dockerPermissions = await checkCommand('docker', ['info']);
+  }
+  
+  // Check Bash
+  console.log('Checking Bash...');
+  if (process.platform === 'win32') {
+    checks.bash = await checkCommand('bash');
   } else {
     checks.bash = true; // Unix systems have bash by default
   }
   
+  // Check core system utilities
+  console.log('Checking core utilities...');
+  checks.curl = await checkCommand('curl');
+  checks.jq = await checkCommand('jq');
+  checks.findutils = await checkCommand('find', ['--version']);
+  checks.sed = await checkCommand('sed', ['--version']);
+  checks.file = await checkCommand('file', ['--version']);
+  checks.grep = await checkCommand('grep', ['--version']);
+  
+  // Check media processing tools
+  console.log('Checking media processing tools...');
+  checks.mkvmerge = await checkCommand('mkvmerge', ['--version']);
+  checks.mkvextract = await checkCommand('mkvextract', ['--version']);
+  checks.ffmpeg = await checkCommand('ffmpeg', ['-version']);
+  checks.ffprobe = await checkCommand('ffprobe', ['-version']);
+  
+  // Check network utilities
+  console.log('Checking network utilities...');
+  checks.netstat = await checkCommand('netstat', ['--version']);
+  checks.ss = await checkCommand('ss', ['--version']);
+  
+  // Check optional GPU utilities
+  console.log('Checking GPU utilities...');
+  checks.nvidiaSmi = await checkCommand('nvidia-smi');
+  checks.rocmSmi = await checkCommand('rocm-smi');
+  checks.lspci = await checkCommand('lspci', ['--version']);
+  
+  console.log('Prerequisites check completed:', checks);
   return checks;
 });
 
